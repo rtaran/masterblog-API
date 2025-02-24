@@ -3,36 +3,43 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from datetime import datetime
+import json
+import os
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for cross-origin requests
+CORS(app)
 
 # Configure JWT authentication
 app.config["JWT_SECRET_KEY"] = "super-secret-key"
 jwt = JWTManager(app)
 
-# Correct Limiter initialization
-limiter = Limiter(
-    key_func=get_remote_address
-)
-limiter.init_app(app)  # Attach Limiter to Flask app
+# Configure request rate limiting
+limiter = Limiter(key_func=get_remote_address)
 
-# Hardcoded list of blog posts
-POSTS = [
-    {
-        "id": 1,
-        "title": "Flask API",
-        "content": "Learn how to build APIs with Flask.",
-        "category": "Programming",
-        "tags": ["Python", "Flask", "API"],
-        "comments": [
-            {"user": "Alice", "text": "Great post!"},
-            {"user": "Bob", "text": "Thanks for the info!"}
-        ]
-    }
-]
+# JSON File to store posts
+POSTS_FILE = "posts.json"
 
-# User authentication (Login)
+# 🔹 Utility Functions for JSON File Handling
+def load_posts():
+    """Read posts from JSON file safely."""
+    if not os.path.exists(POSTS_FILE):
+        return []
+    try:
+        with open(POSTS_FILE, "r", encoding="utf-8") as file:
+            data = file.read()
+            return json.loads(data) if data.strip() else []
+    except (json.JSONDecodeError, IOError):
+        return []
+
+def save_posts(posts):
+    """Safely write posts to JSON file without corruption."""
+    temp_file = POSTS_FILE + ".tmp"
+    with open(temp_file, "w", encoding="utf-8") as file:
+        json.dump(posts, file, indent=4)
+    os.replace(temp_file, POSTS_FILE)  # Atomically replace old file
+
+# 🔹 User Authentication (Login)
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -41,26 +48,30 @@ def login():
         return jsonify(access_token=access_token), 200
     return jsonify({"error": "Invalid credentials"}), 401
 
-# GET all posts with sorting & pagination
+# 🔹 GET `/api/posts` - Retrieve All Posts with Sorting & Pagination
 @app.route('/api/posts', methods=['GET'])
-@limiter.limit("10 per minute")  # Rate limiting applied
+@limiter.limit("10 per minute")
 def get_posts():
     """Fetch all blog posts with optional sorting and pagination."""
+    posts = load_posts()
     sort_by = request.args.get('sort', None)
     direction = request.args.get('direction', 'asc').lower()
     page = request.args.get('page', type=int, default=1)
     limit = request.args.get('limit', type=int, default=5)
 
-    valid_sort_fields = {"title", "content"}
+    valid_sort_fields = {"title", "content", "author", "date"}
     valid_directions = {"asc", "desc"}
 
     if sort_by and sort_by not in valid_sort_fields:
-        return jsonify({"error": "Invalid sort field. Use 'title' or 'content'."}), 400
+        return jsonify({"error": "Invalid sort field."}), 400
 
     if direction not in valid_directions:
-        return jsonify({"error": "Invalid direction. Use 'asc' or 'desc'."}), 400
+        return jsonify({"error": "Invalid sort direction."}), 400
 
-    sorted_posts = sorted(POSTS, key=lambda x: x[sort_by].lower(), reverse=direction == "desc") if sort_by else POSTS
+    if sort_by == "date":
+        sorted_posts = sorted(posts, key=lambda x: datetime.strptime(x["date"], "%Y-%m-%d"), reverse=direction == "desc")
+    else:
+        sorted_posts = sorted(posts, key=lambda x: x[sort_by].lower(), reverse=direction == "desc") if sort_by else posts
 
     start_index = (page - 1) * limit
     end_index = start_index + limit
@@ -69,87 +80,71 @@ def get_posts():
     return jsonify({
         "page": page,
         "limit": limit,
-        "total_posts": len(POSTS),
-        "total_pages": (len(POSTS) + limit - 1) // limit,
+        "total_posts": len(posts),
+        "total_pages": (len(posts) + limit - 1) // limit,
         "posts": paginated_posts
     }), 200
 
-# Create a new post (Authenticated)
+# 🔹 POST `/api/posts` - Create a New Post
 @app.route('/api/posts', methods=['POST'])
 @jwt_required()
 def add_post():
-    """Add a new blog post with authentication."""
+    """Add a new blog post and save to JSON file."""
+    posts = load_posts()
     data = request.json
 
-    if not data or "title" not in data or "content" not in data:
-        return jsonify({"error": "Title and content are required"}), 400
+    if not data or "title" not in data or "content" not in data or "author" not in data:
+        return jsonify({"error": "Title, content, and author are required"}), 400
 
-    new_id = max(post["id"] for post in POSTS) + 1 if POSTS else 1
+    date_str = data.get("date", datetime.today().strftime("%Y-%m-%d"))
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use 'YYYY-MM-DD'"}), 400
+
+    new_id = max((post["id"] for post in posts), default=0) + 1
 
     new_post = {
         "id": new_id,
         "title": data["title"],
         "content": data["content"],
+        "author": data["author"],
+        "date": date_str
     }
 
-    POSTS.append(new_post)
-    return jsonify(new_post), 201  # 201 Created
+    posts.append(new_post)
+    save_posts(posts)
+    return jsonify(new_post), 201
 
-# Delete a post
+# 🔹 DELETE `/api/posts/<id>` - Remove a Post
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 @jwt_required()
 def delete_post(post_id):
-    """Delete a blog post by ID with error handling."""
-    post_to_delete = next((post for post in POSTS if post["id"] == post_id), None)
+    """Delete a blog post from JSON file."""
+    posts = load_posts()
+    post_to_delete = next((post for post in posts if post["id"] == post_id), None)
 
     if not post_to_delete:
         return jsonify({"error": f"Post with id {post_id} not found"}), 404
 
-    POSTS.remove(post_to_delete)  # Modify list in place
+    posts.remove(post_to_delete)
+    save_posts(posts)
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
-# Update a post
-@app.route('/api/posts/<int:post_id>', methods=['PUT'])
-@jwt_required()
-def update_post(post_id):
-    """Update a blog post by ID, keeping old values if not provided."""
-    data = request.json
-    post_to_update = next((post for post in POSTS if post["id"] == post_id), None)
-
-    if not post_to_update:
-        return jsonify({"error": f"Post with id {post_id} not found"}), 404
-
-    post_to_update["title"] = data.get("title", post_to_update["title"])
-    post_to_update["content"] = data.get("content", post_to_update["content"])
-
-    return jsonify(post_to_update), 200  # 200 OK
-
-# Search for posts
+# 🔹 Search for Posts
 @app.route('/api/posts/search', methods=['GET'])
 def search_posts():
-    """Search for blog posts by title or content."""
-    title_query = request.args.get('title', '').strip().lower()
-    content_query = request.args.get('content', '').strip().lower()
+    """Search for blog posts by title, content, author, or date."""
+    query = request.args.get('query', '').strip().lower()
+    posts = load_posts()
+    if not query:
+        return jsonify([]), 200
 
-    if not title_query and not content_query:
-        return jsonify({"error": "Please provide a search query"}), 400
+    matching_posts = [post for post in posts if query in post["title"].lower() or
+                      query in post["content"].lower() or query in post["author"].lower() or query in post["date"]]
 
-    matching_posts = [
-        post for post in POSTS
-        if title_query in post["title"].lower() or content_query in post["content"].lower()
-    ]
+    return jsonify(matching_posts), 200
 
-    return jsonify(matching_posts), 200  # Return matching posts
-
-# API versioning
-@app.route('/api/v1/posts', methods=['GET'])
-def get_posts_v1():
-    return jsonify(POSTS)
-
-@app.route('/api/v2/posts', methods=['GET'])
-def get_posts_v2():
-    return jsonify({"message": "New version with better features!"})
-
-# Run the app
+# 🔹 Run the App
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
