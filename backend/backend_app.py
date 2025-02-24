@@ -10,12 +10,42 @@ POSTS = [
     {"id": 2, "title": "Second Post", "content": "This is the second post."},
 ]
 
-
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
-    """Fetch all blog posts."""
-    return jsonify(POSTS)
+    """Fetch all blog posts with optional sorting and pagination."""
+    sort_by = request.args.get('sort', None)
+    direction = request.args.get('direction', 'asc').lower()
+    page = request.args.get('page', 1, type=int)  # Default to page 1
+    limit = request.args.get('limit', 5, type=int)  # Default to 5 posts per page
 
+    valid_sort_fields = {"title", "content"}
+    valid_directions = {"asc", "desc"}
+
+    # Error handling: Check if provided sorting fields are valid
+    if sort_by and sort_by not in valid_sort_fields:
+        return jsonify({"error": "Invalid sort field. Use 'title' or 'content'."}), 400
+
+    if direction not in valid_directions:
+        return jsonify({"error": "Invalid direction. Use 'asc' or 'desc'."}), 400
+
+    # If a valid sort field is provided, sort posts accordingly
+    sorted_posts = POSTS
+    if sort_by:
+        reverse_order = direction == "desc"
+        sorted_posts = sorted(POSTS, key=lambda x: x[sort_by].lower(), reverse=reverse_order)
+
+    # Implement pagination
+    start_index = (page - 1) * limit
+    end_index = start_index + limit
+    paginated_posts = sorted_posts[start_index:end_index]
+
+    return jsonify({
+        "page": page,
+        "limit": limit,
+        "total_posts": len(POSTS),
+        "total_pages": (len(POSTS) + limit - 1) // limit,  # Calculate total pages
+        "posts": paginated_posts
+    }), 200
 
 @app.route('/api/posts', methods=['POST'])
 def add_post():
@@ -38,7 +68,6 @@ def add_post():
     POSTS.append(new_post)
     return jsonify(new_post), 201  # 201 Created
 
-
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
     """Delete a blog post by ID with error handling."""
@@ -50,7 +79,6 @@ def delete_post(post_id):
 
     POSTS = [post for post in POSTS if post["id"] != post_id]
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
-
 
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
 def update_post(post_id):
@@ -78,6 +106,7 @@ def search_posts():
         post for post in POSTS
         if title_query in post["title"].lower() or content_query in post["content"].lower()
     ]
+
 
     return jsonify(matching_posts), 200  # Return matching posts
 
