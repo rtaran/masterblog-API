@@ -1,14 +1,60 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required
+from flask_limiter import Limiter
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
+app.config["JWT_SECRET_KEY"] = "super-secret-key"
+jwt = JWTManager(app)
+limiter = Limiter(app, key_func=lambda: request.remote_addr)
 # Hardcoded list of blog posts
 POSTS = [
-    {"id": 1, "title": "First Post", "content": "This is the first post."},
-    {"id": 2, "title": "Second Post", "content": "This is the second post."},
+    {
+        "id": 1,
+        "title": "Flask API",
+        "content": "Learn how to build APIs with Flask.",
+        "category": "Programming",
+        "tags": ["Python", "Flask", "API"],
+        "comments": [
+            {"user": "Alice", "text": "Great post!"},
+            {"user": "Bob", "text": "Thanks for the info!"}
+        ]
+    }
 ]
+# POSTS = [
+#     {"id": 1, "title": "First Post", "content": "This is the first post."},
+#     {"id": 2, "title": "Second Post", "content": "This is the second post."},
+# ]
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json
+    if data["username"] == "admin" and data["password"] == "password":
+        access_token = create_access_token(identity=data["username"])
+        return jsonify(access_token=access_token), 200
+    return jsonify({"error": "Invalid credentials"}), 401
+
+@app.route('/api/posts', methods=['POST'])
+@jwt_required()
+def create_post():
+    """Only authenticated users can create posts."""
+    data = request.json
+    return jsonify({"message": "Post created!"}), 201
+
+@app.route('/api/v1/posts', methods=['GET'])
+def get_posts_v1():
+    return jsonify(POSTS)
+
+@app.route('/api/v2/posts', methods=['GET'])
+def get_posts_v2():
+    return jsonify({"message": "New version with better features!"})
+
+@app.route('/api/posts', methods=['GET'])
+@limiter.limit("10 per minute")  # Allow only 10 requests per minute
+def get_posts():
+    return jsonify(POSTS)
 
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
