@@ -2,13 +2,21 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
+# Configure JWT authentication
 app.config["JWT_SECRET_KEY"] = "super-secret-key"
 jwt = JWTManager(app)
-limiter = Limiter(app, key_func=lambda: request.remote_addr)
+
+# Correct Limiter initialization
+limiter = Limiter(
+    key_func=get_remote_address
+)
+limiter.init_app(app)  # Attach Limiter to Flask app
+
 # Hardcoded list of blog posts
 POSTS = [
     {
@@ -23,11 +31,8 @@ POSTS = [
         ]
     }
 ]
-# POSTS = [
-#     {"id": 1, "title": "First Post", "content": "This is the first post."},
-#     {"id": 2, "title": "Second Post", "content": "This is the second post."},
-# ]
 
+# User authentication (Login)
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -36,51 +41,27 @@ def login():
         return jsonify(access_token=access_token), 200
     return jsonify({"error": "Invalid credentials"}), 401
 
-@app.route('/api/posts', methods=['POST'])
-@jwt_required()
-def create_post():
-    """Only authenticated users can create posts."""
-    data = request.json
-    return jsonify({"message": "Post created!"}), 201
-
-@app.route('/api/v1/posts', methods=['GET'])
-def get_posts_v1():
-    return jsonify(POSTS)
-
-@app.route('/api/v2/posts', methods=['GET'])
-def get_posts_v2():
-    return jsonify({"message": "New version with better features!"})
-
+# GET all posts with sorting & pagination
 @app.route('/api/posts', methods=['GET'])
-@limiter.limit("10 per minute")  # Allow only 10 requests per minute
-def get_posts():
-    return jsonify(POSTS)
-
-@app.route('/api/posts', methods=['GET'])
+@limiter.limit("10 per minute")  # Rate limiting applied
 def get_posts():
     """Fetch all blog posts with optional sorting and pagination."""
     sort_by = request.args.get('sort', None)
     direction = request.args.get('direction', 'asc').lower()
-    page = request.args.get('page', 1, type=int)  # Default to page 1
-    limit = request.args.get('limit', 5, type=int)  # Default to 5 posts per page
+    page = request.args.get('page', type=int, default=1)
+    limit = request.args.get('limit', type=int, default=5)
 
     valid_sort_fields = {"title", "content"}
     valid_directions = {"asc", "desc"}
 
-    # Error handling: Check if provided sorting fields are valid
     if sort_by and sort_by not in valid_sort_fields:
         return jsonify({"error": "Invalid sort field. Use 'title' or 'content'."}), 400
 
     if direction not in valid_directions:
         return jsonify({"error": "Invalid direction. Use 'asc' or 'desc'."}), 400
 
-    # If a valid sort field is provided, sort posts accordingly
-    sorted_posts = POSTS
-    if sort_by:
-        reverse_order = direction == "desc"
-        sorted_posts = sorted(POSTS, key=lambda x: x[sort_by].lower(), reverse=reverse_order)
+    sorted_posts = sorted(POSTS, key=lambda x: x[sort_by].lower(), reverse=direction == "desc") if sort_by else POSTS
 
-    # Implement pagination
     start_index = (page - 1) * limit
     end_index = start_index + limit
     paginated_posts = sorted_posts[start_index:end_index]
@@ -89,20 +70,20 @@ def get_posts():
         "page": page,
         "limit": limit,
         "total_posts": len(POSTS),
-        "total_pages": (len(POSTS) + limit - 1) // limit,  # Calculate total pages
+        "total_pages": (len(POSTS) + limit - 1) // limit,
         "posts": paginated_posts
     }), 200
 
+# Create a new post (Authenticated)
 @app.route('/api/posts', methods=['POST'])
+@jwt_required()
 def add_post():
-    """Add a new blog post with error handling."""
+    """Add a new blog post with authentication."""
     data = request.json
 
-    # Validate input
     if not data or "title" not in data or "content" not in data:
         return jsonify({"error": "Title and content are required"}), 400
 
-    # Generate a new unique ID
     new_id = max(post["id"] for post in POSTS) + 1 if POSTS else 1
 
     new_post = {
@@ -114,19 +95,22 @@ def add_post():
     POSTS.append(new_post)
     return jsonify(new_post), 201  # 201 Created
 
+# Delete a post
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
+@jwt_required()
 def delete_post(post_id):
     """Delete a blog post by ID with error handling."""
-    global POSTS
     post_to_delete = next((post for post in POSTS if post["id"] == post_id), None)
 
     if not post_to_delete:
         return jsonify({"error": f"Post with id {post_id} not found"}), 404
 
-    POSTS = [post for post in POSTS if post["id"] != post_id]
+    POSTS.remove(post_to_delete)  # Modify list in place
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
+# Update a post
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
+@jwt_required()
 def update_post(post_id):
     """Update a blog post by ID, keeping old values if not provided."""
     data = request.json
@@ -135,26 +119,37 @@ def update_post(post_id):
     if not post_to_update:
         return jsonify({"error": f"Post with id {post_id} not found"}), 404
 
-    # Update fields only if they are provided in the request
     post_to_update["title"] = data.get("title", post_to_update["title"])
     post_to_update["content"] = data.get("content", post_to_update["content"])
 
     return jsonify(post_to_update), 200  # 200 OK
 
+# Search for posts
 @app.route('/api/posts/search', methods=['GET'])
 def search_posts():
     """Search for blog posts by title or content."""
-    title_query = request.args.get('title', '').lower()
-    content_query = request.args.get('content', '').lower()
+    title_query = request.args.get('title', '').strip().lower()
+    content_query = request.args.get('content', '').strip().lower()
 
-    # Filter posts based on search criteria
+    if not title_query and not content_query:
+        return jsonify({"error": "Please provide a search query"}), 400
+
     matching_posts = [
         post for post in POSTS
         if title_query in post["title"].lower() or content_query in post["content"].lower()
     ]
 
-
     return jsonify(matching_posts), 200  # Return matching posts
 
+# API versioning
+@app.route('/api/v1/posts', methods=['GET'])
+def get_posts_v1():
+    return jsonify(POSTS)
+
+@app.route('/api/v2/posts', methods=['GET'])
+def get_posts_v2():
+    return jsonify({"message": "New version with better features!"})
+
+# Run the app
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
