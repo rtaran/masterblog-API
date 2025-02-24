@@ -4,23 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blog Posts</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
     <div class="container">
         <h1>📚 Blog Posts</h1>
+
         <div class="input-field">
             <input type="text" id="api-base-url" placeholder="Enter API Base URL" value="http://127.0.0.1:5002/api">
             <button onclick="loadPosts()">Load Posts</button>
         </div>
+
         <div class="input-field">
             <input type="text" id="post-title" placeholder="Enter Post Title">
             <input type="text" id="post-content" placeholder="Enter Post Content">
+            <input type="text" id="post-author" placeholder="Enter Author">
             <button onclick="addPost()">Add Post</button>
         </div>
+
+        <div class="input-field">
+            <select id="sort-options">
+                <option value="date">Sort by Date</option>
+                <option value="title">Sort by Title</option>
+                <option value="author">Sort by Author</option>
+            </select>
+            <button onclick="loadSortedPosts()">Sort</button>
+        </div>
+
+        <div class="input-field">
+            <input type="text" id="search-query" placeholder="Search posts...">
+            <button onclick="searchPosts()">🔍 Search</button>
+        </div>
+
         <div id="post-container">
-            <!-- Blog posts will be inserted here by JavaScript -->
+            <!-- Blog posts will be inserted here dynamically -->
         </div>
     </div>
 
