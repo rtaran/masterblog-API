@@ -84,9 +84,61 @@ masterblog+API/ ├── backend/ │ └── backend_app.py ├── fronte
 
 ---
 
+## 🔐 Authentication
+
+### Obtaining a JWT Token
+
+To perform operations that require authentication (creating or deleting posts), you need to obtain a JWT token:
+
+1. **Make a POST request to `/api/login` with the following credentials:**
+   ```json
+   {
+     "username": "admin",
+     "password": "password"
+   }
+   ```
+
+2. **Example using curl:**
+   ```bash
+   curl -X POST http://localhost:5002/api/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "admin", "password": "password"}'
+   ```
+
+3. **The response will contain your access token:**
+   ```json
+   {
+     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   }
+   ```
+
+### Using the JWT Token
+
+Include the token in the Authorization header for protected endpoints:
+
+1. **Example of creating a new post with authentication:**
+   ```bash
+   curl -X POST http://localhost:5002/api/posts \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+     -d '{"title": "New Post", "content": "Post content", "author": "Your Name"}'
+   ```
+
+2. **Example of deleting a post with authentication:**
+   ```bash
+   curl -X DELETE http://localhost:5002/api/posts/1 \
+     -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+   ```
+
+Replace `YOUR_ACCESS_TOKEN` with the actual token you received from the login endpoint.
+
+---
+
 ## 🖥️ Frontend
 
 Visit http://localhost:5001 after starting both servers to use the web UI.
+
+> **Note:** The current frontend implementation does not include authentication functionality. To add or delete posts, you'll need to use API tools like curl or Postman with the JWT token as described in the Authentication section above. The web UI can still be used to view and search posts.
 
 ---
 
