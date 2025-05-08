@@ -75,10 +75,10 @@ body {
 }
 
 .post button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: #ff4444;
+    display: inline-block;
+    margin-right: 5px;
+    margin-top: 10px;
+    background-color: #4466ee;
     color: #fff;
     border: none;
     padding: 5px 10px;
@@ -87,5 +87,62 @@ body {
 }
 
 .post button:hover {
+    background-color: #3355dd;
+}
+
+.post button:nth-child(4) {
+    background-color: #ff4444;
+}
+
+.post button:nth-child(4):hover {
     background-color: #cc0000;
+}
+
+.update-form {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+}
+
+.update-form h3 {
+    margin-top: 0;
+    color: #4466ee;
+}
+
+.update-form input, .update-form textarea {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.update-form textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.update-form button {
+    margin-right: 5px;
+}
+
+.comments-section {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+}
+
+.comments-section input {
+    width: 80%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-right: 10px;
+}
+
+.comment-list {
+    margin-top: 10px;
 }

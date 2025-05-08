@@ -14,7 +14,11 @@ function loadPosts() {
 
     fetch(baseUrl + '/posts')
         .then(response => response.json())
-        .then(data => displayPosts(data.posts))
+        .then(data => {
+            // Check if data has a posts property, otherwise use the data itself
+            const posts = data.posts || data;
+            displayPosts(posts);
+        })
         .catch(error => console.error('Error:', error));
 }
 
@@ -32,12 +36,22 @@ function displayPosts(posts) {
             <p><strong>By:</strong> ${post.author} | <strong>Date:</strong> ${post.date}</p>
             <p>${post.content}</p>
             <button onclick="deletePost(${post.id})">🗑 Delete</button>
+            <button onclick="showUpdateForm(${post.id}, '${post.title.replace(/'/g, "\\'")}', '${post.content.replace(/'/g, "\\'")}', '${post.author.replace(/'/g, "\\'")}', '${post.date}')">✏️ Edit</button>
             <button onclick="likePost(${post.id})">👍 Like (<span id="like-count-${post.id}">0</span>)</button>
             <button onclick="toggleCommentSection(${post.id})">💬 Comment</button>
             <div id="comments-${post.id}" class="comments-section" style="display: none;">
                 <input type="text" id="comment-input-${post.id}" placeholder="Write a comment..." />
                 <button onclick="addComment(${post.id})">Submit</button>
-                <div id="comment-list-${post.id}"></div>
+                <div id="comment-list-${post.id}" class="comment-list"></div>
+            </div>
+            <div id="update-form-${post.id}" class="update-form" style="display: none;">
+                <h3>Update Post</h3>
+                <input type="text" id="update-title-${post.id}" placeholder="Title" />
+                <textarea id="update-content-${post.id}" placeholder="Content"></textarea>
+                <input type="text" id="update-author-${post.id}" placeholder="Author" />
+                <input type="text" id="update-date-${post.id}" placeholder="Date (YYYY-MM-DD)" />
+                <button onclick="updatePost(${post.id})">Update</button>
+                <button onclick="hideUpdateForm(${post.id})">Cancel</button>
             </div>
         `;
 
@@ -113,16 +127,84 @@ function loadSortedPosts() {
 
     fetch(`${baseUrl}/posts?sort=${sortOption}&direction=desc`)
         .then(response => response.json())
-        .then(data => displayPosts(data.posts))
+        .then(data => {
+            // Check if data has a posts property, otherwise use the data itself
+            const posts = data.posts || data;
+            displayPosts(posts);
+        })
         .catch(error => console.error('Error:', error));
+}
+
+// Function to show the update form for a post
+function showUpdateForm(postId, title, content, author, date) {
+    // Hide any other open update forms
+    document.querySelectorAll('.update-form').forEach(form => {
+        form.style.display = 'none';
+    });
+
+    // Show the update form for this post
+    const updateForm = document.getElementById(`update-form-${postId}`);
+    updateForm.style.display = 'block';
+
+    // Populate the form with current values
+    document.getElementById(`update-title-${postId}`).value = title;
+    document.getElementById(`update-content-${postId}`).value = content;
+    document.getElementById(`update-author-${postId}`).value = author;
+    document.getElementById(`update-date-${postId}`).value = date;
+}
+
+// Function to hide the update form
+function hideUpdateForm(postId) {
+    document.getElementById(`update-form-${postId}`).style.display = 'none';
+}
+
+// Function to update a post
+function updatePost(postId) {
+    var baseUrl = document.getElementById('api-base-url').value;
+    var title = document.getElementById(`update-title-${postId}`).value;
+    var content = document.getElementById(`update-content-${postId}`).value;
+    var author = document.getElementById(`update-author-${postId}`).value;
+    var date = document.getElementById(`update-date-${postId}`).value;
+
+    // Create the update data object
+    var updateData = {};
+    if (title) updateData.title = title;
+    if (content) updateData.content = content;
+    if (author) updateData.author = author;
+    if (date) updateData.date = date;
+
+    fetch(`${baseUrl}/posts/${postId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+    })
+    .then(response => response.json())
+    .then(updatedPost => {
+        console.log('Post updated:', updatedPost);
+        hideUpdateForm(postId);
+        loadPosts(); // Reload all posts to show the updated one
+    })
+    .catch(error => console.error('Error:', error));
 }
 
 // Function to search posts
 function searchPosts() {
     var baseUrl = document.getElementById('api-base-url').value;
-    var query = document.getElementById('search-query').value;
+    var titleQuery = document.getElementById('search-title').value;
+    var contentQuery = document.getElementById('search-content').value;
 
-    fetch(`${baseUrl}/posts/search?query=${query}`)
+    // Build the query string with title and content parameters
+    var queryParams = [];
+    if (titleQuery) {
+        queryParams.push(`title=${encodeURIComponent(titleQuery)}`);
+    }
+    if (contentQuery) {
+        queryParams.push(`content=${encodeURIComponent(contentQuery)}`);
+    }
+
+    var queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+
+    fetch(`${baseUrl}/posts/search${queryString}`)
         .then(response => response.json())
         .then(data => displayPosts(data))
         .catch(error => console.error('Error:', error));

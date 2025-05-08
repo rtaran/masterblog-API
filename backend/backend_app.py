@@ -131,17 +131,61 @@ def delete_post(post_id):
     save_posts(posts)
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
+# 🔹 PUT `/api/posts/<id>` - Update a Post
+@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+@jwt_required()
+def update_post(post_id):
+    """Update an existing blog post."""
+    posts = load_posts()
+    post_to_update = next((post for post in posts if post["id"] == post_id), None)
+
+    if not post_to_update:
+        return jsonify({"error": f"Post with id {post_id} not found"}), 404
+
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    # Update fields if they are provided
+    if "title" in data:
+        post_to_update["title"] = data["title"]
+    if "content" in data:
+        post_to_update["content"] = data["content"]
+    if "author" in data:
+        post_to_update["author"] = data["author"]
+
+    # Update date if provided and valid
+    if "date" in data:
+        try:
+            datetime.strptime(data["date"], "%Y-%m-%d")
+            post_to_update["date"] = data["date"]
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use 'YYYY-MM-DD'"}), 400
+
+    save_posts(posts)
+    return jsonify(post_to_update), 200
+
 # 🔹 Search for Posts
 @app.route('/api/posts/search', methods=['GET'])
 def search_posts():
-    """Search for blog posts by title, content, author, or date."""
-    query = request.args.get('query', '').strip().lower()
+    """Search for blog posts by title and content."""
+    title_query = request.args.get('title', '').strip().lower()
+    content_query = request.args.get('content', '').strip().lower()
     posts = load_posts()
-    if not query:
+
+    # If no search parameters are provided, return empty list
+    if not title_query and not content_query:
         return jsonify([]), 200
 
-    matching_posts = [post for post in posts if query in post["title"].lower() or
-                      query in post["content"].lower() or query in post["author"].lower() or query in post["date"]]
+    matching_posts = []
+    for post in posts:
+        # Check if post matches the search criteria
+        title_match = not title_query or title_query in post["title"].lower()
+        content_match = not content_query or content_query in post["content"].lower()
+
+        # Add post to results if it matches all provided criteria
+        if title_match and content_match:
+            matching_posts.append(post)
 
     return jsonify(matching_posts), 200
 

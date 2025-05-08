@@ -4,7 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c907827-6af7-4707-8945-9f05c1c79982" name="Changes" comment="" />
+    <list default="true" id="7c907827-6af7-4707-8945-9f05c1c79982" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/backend_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/backend_app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/static/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/static/main.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/static/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/static/styles.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/templates/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/templates/index.html" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -71,6 +77,8 @@
       <option name="presentableId" value="Default" />
       <updated>1745610307000</updated>
       <workItem from="1746101593269" duration="1986000" />
+      <workItem from="1746104408788" duration="1859000" />
+      <workItem from="1746716903401" duration="1512000" />
     </task>
     <servers />
   </component>
