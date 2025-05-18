@@ -32,6 +32,7 @@ def load_posts():
     except (json.JSONDecodeError, IOError):
         return []
 
+
 def save_posts(posts):
     """Safely write posts to JSON file without corruption."""
     temp_file = POSTS_FILE + ".tmp"
@@ -69,9 +70,20 @@ def get_posts():
         return jsonify({"error": "Invalid sort direction."}), 400
 
     if sort_by == "date":
-        sorted_posts = sorted(posts, key=lambda x: datetime.strptime(x["date"], "%Y-%m-%d"), reverse=direction == "desc")
+        sorted_posts = sorted(
+            posts,
+            key=lambda x: datetime.strptime(x["date"], "%Y-%m-%d"),
+            reverse=direction == "desc"
+        )
     else:
-        sorted_posts = sorted(posts, key=lambda x: x[sort_by].lower(), reverse=direction == "desc") if sort_by else posts
+        if sort_by:
+            sorted_posts = sorted(
+                posts,
+                key=lambda x: x[sort_by].lower(),
+                reverse=direction == "desc"
+            )
+        else:
+            sorted_posts = posts
 
     start_index = (page - 1) * limit
     end_index = start_index + limit
@@ -84,6 +96,7 @@ def get_posts():
         "total_pages": (len(posts) + limit - 1) // limit,
         "posts": paginated_posts
     }), 200
+
 
 # 🔹 POST `/api/posts` - Create a New Post
 @app.route('/api/posts', methods=['POST'])
@@ -131,6 +144,7 @@ def delete_post(post_id):
     save_posts(posts)
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
+
 # 🔹 PUT `/api/posts/<id>` - Update a Post
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
 @jwt_required()
@@ -164,6 +178,7 @@ def update_post(post_id):
 
     save_posts(posts)
     return jsonify(post_to_update), 200
+
 
 # 🔹 Search for Posts
 @app.route('/api/posts/search', methods=['GET'])
